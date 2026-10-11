@@ -1,77 +1,92 @@
-# Segmentation Client E-commerce avec Apache Spark et Kafka
+# E-commerce Customer Segmentation with Apache Spark and Kafka
 
-Projet Big Data visant à segmenter une base de clients e-commerce via une analyse RFM (Récence, Fréquence, Montant). Ce projet compare l'efficacité de deux algorithmes de clustering et met en œuvre un pipeline de traitement de flux en temps réel (Spark Structured Streaming et Apache Kafka) pour l'enrichissement dynamique des transactions.
+A comprehensive Big Data project that performs batch customer segmentation using RFM (Recency, Frequency, Monetary) analysis, compares clustering algorithms, and demonstrates real-time transaction enrichment using Apache Kafka and Spark Structured Streaming.
 
-Développé par : Mohammed Boujaada et Mohamed Zahir
+## Table of Contents
 
-## Aperçu du projet
+- [Project Overview](#project-overview)
+- [Workflow](#workflow)
+- [Results and Analysis](#results-and-analysis)
+- [Dataset](#dataset)
+- [Requirements](#requirements)
+- [Getting Started](#getting-started)
+- [Execution Guide](#execution-guide)
+- [Repository Structure](#repository-structure)
+- [Notes and Limitations](#notes-and-limitations)
+- [Technologies](#technologies)
 
-- Traitement Big Data : Apache Spark, PySpark DataFrames et opérations RDD.
-- Analyse client : Ingénierie des fonctionnalités basées sur le modèle RFM.
-- Machine Learning : Transformation logarithmique, standardisation, et clustering (K-Means et Clustering Hiérarchique) avec Spark MLlib.
-- Comparaison de modèles : Évaluation comparative via le score de silhouette sur des vecteurs de caractéristiques standardisés.
-- Traitement de flux : Enrichissement en temps réel des événements de transaction Kafka via Spark Structured Streaming.
-- Environnement d'exécution : Docker Compose et Jupyter Notebook.
+## Project Overview
 
-## Flux de traitement (Workflow)
+This repository implements an end-to-end data pipeline designed to segment e-commerce customers and apply these segments to streaming data. The architecture is divided into two main phases:
 
-1. Chargement et exploration du jeu de données "Online Retail".
-2. Nettoyage des données : suppression des doublons, des entrées sans identifiant client, des factures annulées et des transactions aux quantités ou prix non positifs.
-3. Ingénierie des fonctionnalités : calcul du revenu par transaction et agrégation des métriques RFM au niveau client.
-4. Prétraitement : application de transformations logarithmiques et standardisation des caractéristiques RFM.
-5. Évaluation du modèle K-Means pour des valeurs de K comprises entre 2 et 8.
-6. Comparaison des performances entre K-Means et le Clustering Hiérarchique (liaison de Ward) pour K=2, en utilisant le score de silhouette.
-7. Sélection de l'algorithme optimal, analyse des profils clients générés et sauvegarde de la segmentation finale au format Parquet.
-8. Consommation de flux de transactions JSON via Kafka et association des clients reconnus à leur segment précalculé.
+- **Batch Processing:** Utilizes Apache Spark and PySpark DataFrames to clean data, engineer RFM features, and train clustering models using Spark MLlib.
+- **Model Evaluation:** Compares K-Means and Agglomerative Clustering (Ward linkage) using the silhouette score with squared Euclidean distance to select the optimal model.
+- **Stream Processing:** Utilizes Apache Kafka and Spark Structured Streaming to consume live JSON transaction events and enrich them with the pre-computed customer segments.
+- **Environment:** Fully containerized using Docker Compose for reproducible execution, featuring a Jupyter Notebook interface.
 
-Le notebook de streaming utilise la segmentation sauvegardée et ne réentraîne pas le modèle. Les clients non reconnus se voient attribuer une valeur nulle pour le cluster.
+## Workflow
 
-## Résultats et Analyses
+1. **Data Ingestion:** Load and explore the Online Retail dataset.
+2. **Data Cleaning:** Remove duplicate records, rows missing customer IDs, cancellation invoices, and transactions with non-positive quantities or prices.
+3. **Feature Engineering:** Calculate transaction revenue and aggregate customer-level RFM features.
+4. **Preprocessing:** Apply log transformations and standardize the RFM features to ensure uniform scaling.
+5. **Model Selection:** Evaluate K-Means clustering for K values ranging from 2 to 8.
+6. **Algorithm Comparison:** Compare the optimal K-Means model against Agglomerative Clustering (Ward linkage) using two clusters and standardized feature vectors.
+7. **Serialization:** Select the algorithm with the highest silhouette score, analyze the resulting customer profiles, and save the final segmentation model output as a Parquet file.
+8. **Stream Enrichment:** Consume JSON transactions from a Kafka topic and join them with the saved segmentation to assign real-time cluster labels.
 
-Le jeu de données initial contient 541 909 lignes. Après l'application du pipeline de nettoyage, le projet traite environ 392 692 transactions valides, réparties entre 4 338 clients, 18 532 factures et 3 665 produits.
+*Note: The streaming pipeline utilizes the pre-computed segmentation and does not retrain the model. Customers absent from the saved segmentation will be assigned a null cluster.*
 
-### Sélection du modèle K-Means
-Évaluation des valeurs de K de 2 à 8 avec l'évaluateur de clustering de Spark (distance euclidienne au carré).
+## Results and Analysis
 
-| K | Score de silhouette (Spark) |
-|---|-----------------------------|
-| 2 | 0.6238                      |
-| 3 | 0.5013                      |
-| 4 | 0.4999                      |
-| 5 | 0.4772                      |
-| 6 | 0.4704                      |
-| 7 | 0.4379                      |
-| 8 | 0.4398                      |
+The original Online Retail dataset contains 541,909 rows. After applying the preprocessing pipeline, the dataset is reduced to approximately 392,692 valid transactions, representing 4,338 unique customers, 18,532 invoices, and 3,665 unique products.
 
-La valeur K = 2 présente le score de silhouette le plus élevé.
+### K-Means Model Selection
 
-### Comparaison des algorithmes
-Comparaison entre K-Means et le Clustering Hiérarchique (Ward) sur 2 clusters, évaluée avec le score de silhouette de scikit-learn sur les mêmes vecteurs standardisés.
+The Spark MLlib K-Means implementation was evaluated for K values from 2 through 8 using the `ClusteringEvaluator` with `distanceMeasure="squaredEuclidean"`.
 
-| Algorithme                      | Clusters | Score de silhouette |
-|---------------------------------|----------|---------------------|
-| K-Means                         | 2        | 0.4340              |
-| Clustering Hiérarchique (Ward)  | 2        | 0.3933              |
+| K | Silhouette Score | Training Cost |
+|---|------------------|---------------|
+| 2 | 0.6238           | 6486.51       |
+| 3 | 0.5013           | 4878.00       |
+| 4 | 0.4999           | 3961.85       |
+| 5 | 0.4772           | 3330.25       |
+| 6 | 0.4704           | 2874.82       |
+| 7 | 0.4379           | 2595.93       |
+| 8 | 0.4398           | 2361.80       |
 
-Le modèle K-Means est retenu pour ses performances supérieures dans cette configuration.
+Among the tested values, **K = 2** yields the highest silhouette score.
 
-### Profils clients identifiés
-La solution K-Means retenue génère les profils descriptifs suivants :
+### Clustering Algorithm Comparison
 
-| Cluster | Clients | Part    | Récence moyenne (jours) | Fréquence moyenne (factures) | Valeur monétaire moyenne |
-|---------|---------|---------|-------------------------|------------------------------|--------------------------|
-| 0       | 1 654   | 38.13%  | 25.39                   | 8.49                         | 4 566.18                 |
-| 1       | 2 684   | 61.87%  | 133.15                  | 1.68                         | 497.30                   |
+K-Means and Agglomerative Clustering (Ward linkage) were compared using the same standardized RFM feature vectors and two clusters. The evaluation utilized scikit-learn's silhouette score with `metric="sqeuclidean"`.
 
-Le Cluster 0 représente les clients à forte valeur, avec des achats récents et fréquents. Le Cluster 1 regroupe les clients à faible valeur, avec des achats moins récents et moins fréquents.
+| Algorithm                      | Clusters | Silhouette Score |
+|--------------------------------|----------|------------------|
+| K-Means                        | 2        | 0.6238           |
+| Agglomerative Clustering (Ward)| 2        | 0.5567           |
 
-## Jeu de données
+K-Means achieved the higher silhouette score and was selected for the final saved segmentation. Both evaluation steps utilize squared Euclidean distance; the K-Means model-selection score is calculated by Spark MLlib, while the algorithm-comparison scores are calculated with scikit-learn.
 
-Le projet utilise le jeu de données **Online Retail**.
-- Source principale : [UCI Machine Learning Repository - Online Retail](https://archive.ics.uci.edu/dataset/352/online%2Bretail)
-- Téléchargement alternatif : [erkansirin78/datasets - OnlineRetail.csv](https://github.com/erkansirin78/datasets/blob/master/OnlineRetail.csv)
+### Customer Profiles
 
-Le jeu de données n'est pas inclus dans ce dépôt pour des raisons de taille. Il doit être téléchargé manuellement dans le répertoire `project/data/raw/OnlineRetail.csv` :
+The selected K-Means segmentation produces the following descriptive profiles:
+
+| Cluster | Customers | Share  | Avg. Recency (days) | Avg. Frequency (invoices) | Avg. Monetary Value |
+|---------|-----------|--------|---------------------|---------------------------|---------------------|
+| 0       | 1,654     | 38.13% | 25.39               | 8.49                      | 4,566.18            |
+| 1       | 2,684     | 61.87% | 133.15              | 1.68                      | 497.30              |
+
+Cluster 0 represents high-value customers with recent purchases and high engagement. Cluster 1 represents lower-value customers with infrequent and less recent purchases. These are descriptive profiles inferred from the data, not predefined business labels.
+
+## Dataset
+
+The project utilizes the **Online Retail** dataset.
+
+- **Primary Source:** [UCI Machine Learning Repository - Online Retail](https://archive.ics.uci.edu/dataset/352/online%2Bretail)
+- **Alternative Mirror:** [erkansirin78/datasets - OnlineRetail.csv](https://github.com/erkansirin78/datasets/blob/master/OnlineRetail.csv)
+
+The dataset is excluded from version control due to its size. Download it to `project/data/raw/OnlineRetail.csv` using the following command:
 
 ```bash
 mkdir -p project/data/raw
