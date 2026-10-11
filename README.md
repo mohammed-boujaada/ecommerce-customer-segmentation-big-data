@@ -1,193 +1,78 @@
-# E-commerce Customer Segmentation with Apache Spark and Kafka
+# Segmentation Client E-commerce avec Apache Spark et Kafka
 
-A Big Data project that segments e-commerce customers using RFM analysis, compares two clustering algorithms, and demonstrates transaction-stream enrichment with Apache Kafka and Spark Structured Streaming.
+Projet Big Data visant à segmenter une base de clients e-commerce via une analyse RFM (Récence, Fréquence, Montant). Ce projet compare l'efficacité de deux algorithmes de clustering et met en œuvre un pipeline de traitement de flux en temps réel (Spark Structured Streaming et Apache Kafka) pour l'enrichissement dynamique des transactions.
 
-## Project overview
+Développé par : Mohammed Boujaada et Mohamed Zahir
 
-- **Big Data processing:** Apache Spark, PySpark DataFrames, and educational RDD operations.
-- **Customer analytics:** Recency, Frequency, and Monetary (RFM) feature engineering.
-- **Machine learning:** Log transformation, feature assembly, standardization, and K-Means clustering with Spark MLlib.
-- **Model comparison:** K-Means vs. Agglomerative Clustering (Ward linkage), evaluated with silhouette score on the same standardized RFM feature vectors.
-- **Streaming:** Kafka transaction events processed with Spark Structured Streaming.
-- **Environment:** Docker Compose and Jupyter.
+## Aperçu du projet
 
-## Workflow
+- Traitement Big Data : Apache Spark, PySpark DataFrames et opérations RDD.
+- Analyse client : Ingénierie des fonctionnalités basées sur le modèle RFM.
+- Machine Learning : Transformation logarithmique, standardisation, et clustering (K-Means et Clustering Hiérarchique) avec Spark MLlib.
+- Comparaison de modèles : Évaluation comparative via le score de silhouette sur des vecteurs de caractéristiques standardisés.
+- Traitement de flux : Enrichissement en temps réel des événements de transaction Kafka via Spark Structured Streaming.
+- Environnement d'exécution : Docker Compose et Jupyter Notebook.
 
-1. Load and explore the Online Retail dataset.
-2. Remove duplicates, rows without a customer ID, cancellation invoices, and transactions with non-positive quantities or prices.
-3. Calculate transaction revenue and aggregate customer-level RFM features.
-4. Apply log transformations and standardize the RFM features.
-5. Evaluate K-Means for K values from 2 to 8.
-6. Compare K-Means and Agglomerative Clustering (Ward linkage) using two clusters and the same standardized feature vectors.
-7. Select the algorithm with the higher comparison silhouette score, inspect its customer profiles, and save the selected segmentation as Parquet.
-8. Consume JSON transactions from Kafka and associate recognized customers with their saved segment.
+## Flux de traitement (Workflow)
 
-The streaming notebook uses the saved segmentation. It does not retrain the clustering algorithm. Customers not found in the saved segmentation may have a null cluster.
+1. Chargement et exploration du jeu de données "Online Retail".
+2. Nettoyage des données : suppression des doublons, des entrées sans identifiant client, des factures annulées et des transactions aux quantités ou prix non positifs.
+3. Ingénierie des fonctionnalités : calcul du revenu par transaction et agrégation des métriques RFM au niveau client.
+4. Prétraitement : application de transformations logarithmiques et standardisation des caractéristiques RFM.
+5. Évaluation du modèle K-Means pour des valeurs de K comprises entre 2 et 8.
+6. Comparaison des performances entre K-Means et le Clustering Hiérarchique (liaison de Ward) pour K=2, en utilisant le score de silhouette.
+7. Sélection de l'algorithme optimal, analyse des profils clients générés et sauvegarde de la segmentation finale au format Parquet.
+8. Consommation de flux de transactions JSON via Kafka et association des clients reconnus à leur segment précalculé.
 
-## Results
+Le notebook de streaming utilise la segmentation sauvegardée et ne réentraîne pas le modèle. Les clients non reconnus se voient attribuer une valeur nulle pour le cluster.
 
-The original Online Retail dataset contains **541,909 rows**. After the notebook's cleaning pipeline, the project reports approximately **392,692 valid transactions**, **4,338 customers**, **18,532 invoices**, and **3,665 products**.
+## Résultats et Analyses
 
-### K-Means model selection
+Le jeu de données initial contient 541 909 lignes. Après l'application du pipeline de nettoyage, le projet traite environ 392 692 transactions valides, réparties entre 4 338 clients, 18 532 factures et 3 665 produits.
 
-The Spark MLlib K-Means section evaluates K from 2 through 8 using Spark's `ClusteringEvaluator` with `distanceMeasure="squaredEuclidean"`.
+### Sélection du modèle K-Means
+Évaluation des valeurs de K de 2 à 8 avec l'évaluateur de clustering de Spark (distance euclidienne au carré).
 
-| K | Spark silhouette score |
-|---:|---:|
-| 2 | 0.6238 |
-| 3 | 0.5013 |
-| 4 | 0.4999 |
-| 5 | 0.4772 |
-| 6 | 0.4704 |
-| 7 | 0.4379 |
-| 8 | 0.4398 |
+| K | Score de silhouette (Spark) |
+|---|-----------------------------|
+| 2 | 0.6238                      |
+| 3 | 0.5013                      |
+| 4 | 0.4999                      |
+| 5 | 0.4772                      |
+| 6 | 0.4704                      |
+| 7 | 0.4379                      |
+| 8 | 0.4398                      |
 
-Among the tested K values, **K = 2** has the highest Spark silhouette score.
+La valeur K = 2 présente le score de silhouette le plus élevé.
 
-### Algorithm comparison
+### Comparaison des algorithmes
+Comparaison entre K-Means et le Clustering Hiérarchique (Ward) sur 2 clusters, évaluée avec le score de silhouette de scikit-learn sur les mêmes vecteurs standardisés.
 
-The notebook also compares K-Means with Agglomerative Clustering using Ward linkage. For this comparison, both sets of labels are evaluated using scikit-learn's `silhouette_score` on the same standardized feature vectors.
+| Algorithme                      | Clusters | Score de silhouette |
+|---------------------------------|----------|---------------------|
+| K-Means                         | 2        | 0.4340              |
+| Clustering Hiérarchique (Ward)  | 2        | 0.3933              |
 
-| Algorithm | Clusters | Silhouette score |
-|---|---:|---:|
-| K-Means | 2 | 0.4340 |
-| Agglomerative Clustering (Ward) | 2 | 0.3933 |
+Le modèle K-Means est retenu pour ses performances supérieures dans cette configuration.
 
-**K-Means is selected** because it has the higher silhouette score in this comparison. Note that the comparison scores above use scikit-learn's Euclidean silhouette calculation; they are not directly interchangeable with the Spark squared-Euclidean scores in the K-Means model-selection table.
+### Profils clients identifiés
+La solution K-Means retenue génère les profils descriptifs suivants :
 
-### Customer profiles
+| Cluster | Clients | Part    | Récence moyenne (jours) | Fréquence moyenne (factures) | Valeur monétaire moyenne |
+|---------|---------|---------|-------------------------|------------------------------|--------------------------|
+| 0       | 1 654   | 38.13%  | 25.39                   | 8.49                         | 4 566.18                 |
+| 1       | 2 684   | 61.87%  | 133.15                  | 1.68                         | 497.30                   |
 
-The selected K-Means solution produces these profiles:
+Le Cluster 0 représente les clients à forte valeur, avec des achats récents et fréquents. Le Cluster 1 regroupe les clients à faible valeur, avec des achats moins récents et moins fréquents.
 
-| Cluster | Customers | Share | Average recency (days) | Average frequency (invoices) | Average monetary value |
-|---|---:|---:|---:|---:|---:|
-| 0 | 1,654 | 38.13% | 25.39 | 8.49 | 4,566.18 |
-| 1 | 2,684 | 61.87% | 133.15 | 1.68 | 497.30 |
+## Jeu de données
 
-Cluster 0 contains customers with more recent purchases and higher average frequency and monetary value. Cluster 1 contains customers with less recent purchases and lower average frequency and monetary value. These are descriptive profiles derived from the results, not predefined labels.
+Le projet utilise le jeu de données **Online Retail**.
+- Source principale : [UCI Machine Learning Repository - Online Retail](https://archive.ics.uci.edu/dataset/352/online%2Bretail)
+- Téléchargement alternatif : [erkansirin78/datasets - OnlineRetail.csv](https://github.com/erkansirin78/datasets/blob/master/OnlineRetail.csv)
 
-## Dataset
-
-The project uses the **Online Retail** dataset.
-
-- **Primary source:** [UCI Machine Learning Repository — Online Retail](https://archive.ics.uci.edu/dataset/352/online%2Bretail)
-- **Alternative download mirror:** [erkansirin78/datasets — OnlineRetail.csv](https://github.com/erkansirin78/datasets/blob/master/OnlineRetail.csv)
-
-The dataset is not included in this repository. Download it to `project/data/raw/OnlineRetail.csv`:
+Le jeu de données n'est pas inclus dans ce dépôt pour des raisons de taille. Il doit être téléchargé manuellement dans le répertoire `project/data/raw/OnlineRetail.csv` :
 
 ```bash
 mkdir -p project/data/raw
 curl -L "https://raw.githubusercontent.com/erkansirin78/datasets/master/OnlineRetail.csv" -o project/data/raw/OnlineRetail.csv
-```
-
-Check the UCI page for attribution and licensing information before redistributing the dataset.
-
-## Requirements
-
-- Docker Engine
-- Docker Compose
-- A web browser
-
-## Getting started
-
-Clone the repository:
-
-```bash
-git clone git@github.com:moza369/ecommerce-customer-segmentation-big-data.git
-cd ecommerce-customer-segmentation-big-data
-```
-
-Download the dataset using the command above, then start the services:
-
-```bash
-docker compose up -d
-docker compose logs jupyter
-```
-
-Open [http://localhost:8888](http://localhost:8888). If authentication is requested, use the token printed in the Jupyter container logs.
-
-The Compose configuration exposes:
-- Jupyter: `localhost:8888`
-- Spark UI: `localhost:4040` while a Spark application is running
-- Kafka: `localhost:9092` from the host; use `kafka:9092` between Compose containers
-
-## Run the notebooks
-
-Run these notebooks in order.
-
-### 1. Batch segmentation and algorithm comparison
-
-Open `project/notebooks/01_customer_segmentation.ipynb` and run the cells in order.
-
-This notebook performs data cleaning, RFM feature engineering, K-Means model selection, comparison with Agglomerative Clustering, visualizations, and saves the selected customer segmentation to:
-
-`/home/jovyan/work/data/processed/customer_segments`
-
-The saved Parquet output is required by the streaming notebook.
-
-### 2. Start Kafka streaming
-
-Open `project/notebooks/02_kafka_streaming_clean.ipynb` and run its cells in order. The notebook subscribes to the Kafka topic `customer-transactions` using `kafka:9092`.
-
-The stream uses `startingOffsets=latest`. Start the streaming query before publishing test messages, or earlier messages may not be consumed by that query.
-
-### 3. Create the Kafka topic
-
-From the repository root, run:
-
-```bash
-docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
-  --create \
-  --if-not-exists \
-  --topic customer-transactions \
-  --bootstrap-server kafka:9092 \
-  --partitions 1 \
-  --replication-factor 1
-```
-
-### 4. Publish a test transaction
-
-The streaming notebook expects JSON with these fields and types:
-
-- `CustomerID`: integer
-- `InvoiceNo`: string
-- `Quantity`: integer
-- `UnitPrice`: number
-
-After the streaming query is active, publish an example message:
-
-```bash
-printf '%s\n' '{"CustomerID":17850,"InvoiceNo":"DEMO-1001","Quantity":2,"UnitPrice":5.50}' \
-  | docker compose exec -T kafka /opt/kafka/bin/kafka-console-producer.sh \
-      --bootstrap-server kafka:9092 \
-      --topic customer-transactions
-```
-
-Use a `CustomerID` present in the saved segmentation to see an assigned cluster. Unknown customers may have a null cluster. The streaming notebook uses a memory sink for demonstration, not durable storage.
-
-## Repository structure
-
-```text
-.
-├── .gitignore
-├── README.md
-├── docker-compose.yml
-└── project/
-    └── notebooks/
-        ├── 01_customer_segmentation.ipynb
-        └── 02_kafka_streaming_clean.ipynb
-```
-
-The raw dataset, generated Parquet files, and Spark streaming checkpoints should remain excluded from version control.
-
-## Notes and limitations
-
-- K-Means and Agglomerative Clustering are compared with two clusters on the same standardized RFM features.
-- Silhouette scores depend on the distance definition and implementation; the Spark model-selection score and scikit-learn comparison score are reported separately.
-- The streaming pipeline enriches transactions using a previously generated segmentation; it does not retrain the model.
-- The streaming query uses a memory sink and a local checkpoint directory for demonstration.
-- Clean-machine reproducibility has not yet been independently verified.
-
-## Technologies
-
-Python · Apache Spark · PySpark · Spark SQL · Spark MLlib · Apache Kafka · Structured Streaming · K-Means · Agglomerative Clustering · RFM Analysis · Docker Compose · Jupyter
